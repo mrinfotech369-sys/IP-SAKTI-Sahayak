@@ -29,14 +29,18 @@ export function useTrackNavigation() {
   }, [path]);
 }
 
-/** Parent route used when there is no in-app history to go back to. */
+/** Parent route used when there is no in-app history to go back to. Covers both the user
+ * app (/app/*) and the separate admin console (/admin/*) — the two never share a parent. */
 export function parentPath(path: string): string {
   const parts = path.split('/').filter(Boolean);
+  if (parts[0] === 'admin') {
+    if (parts.length >= 3) return `/admin/${parts[1]}`; // e.g. /admin/escalations/{id} -> /admin/escalations
+    return '/admin/dashboard';
+  }
   if (parts[0] !== 'app') return '/';
   if (parts.length <= 1) return '/';
   if (parts[1] === 'innovations' && parts.length >= 3) return parts.length === 3 ? '/app/innovations' : `/app/innovations/${parts[2]}`;
   if (['reports', 'escalations', 'documents'].includes(parts[1]) && parts.length >= 3) return `/app/${parts[1]}`;
-  if (parts[1] === 'admin' && parts.length >= 3) return '/app/admin';
   return '/app';
 }
 

@@ -1,7 +1,7 @@
 """Authentication, authorization, workspace isolation, CSRF, validation and error envelopes."""
 import uuid
 
-from conftest import login
+from conftest import admin_login, login
 
 
 def _email():
@@ -85,9 +85,69 @@ def test_rbac_reviewer_cannot_create_or_delete(client, reviewer, researcher):
 
 def test_admin_only_endpoints(client, researcher, admin):
     assert client.get("/api/admin/overview", headers=researcher).status_code == 403
-    assert client.post("/api/sources", headers=researcher, json={"name": "X", "authority": "Y", "authority_tier": 1, "jurisdiction": "IN", "source_type": "X"}).status_code == 403
+    assert client.post("/api/admin/sources", headers=researcher, json={"name": "X", "authority": "Y", "authority_tier": 1, "jurisdiction": "IN", "source_type": "X"}).status_code == 403
     r = client.get("/api/admin/overview", headers=admin)
     assert r.status_code == 200 and r.json()["data"]["counts"]["documents"] > 30
+
+
+def test_admin_and_user_areas_are_fully_separated(client, researcher, admin):
+    """Final acceptance test from the auth/RBAC spec: user vs admin areas never cross."""
+    # Unauthenticated -> admin route -> admin login required. `client` is session-scoped and other
+    # tests have already logged in through it, so use a fresh cookie jar for the "signed out" check.
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    fresh = TestClient(app)
+    r = fresh.get("/api/admin/overview")
+    assert r.status_code == 401 and r.json()["error"]["code"] == "ADMIN_UNAUTHORIZED"
+
+    # USER (non-admin, logged into the app) -> admin dashboard -> 403, and the app session itself is untouched
+    r = client.get("/api/admin/overview", headers=researcher)
+    assert r.status_code == 403 and r.json()["error"]["code"] == "ADMIN_ACCESS_DENIED"
+    assert client.get("/api/auth/me", headers=researcher).status_code == 200
+
+    # ADMIN role, but signed in through the *app* login (not /admin/login) -> still denied.
+    # Admin console access always requires the separate admin login, even for an ADMIN-role account.
+    admin_user_session = login(client, "admin@ipsakti.demo")
+    r = client.get("/api/admin/overview", headers=admin_user_session)
+    assert r.status_code == 403 and r.json()["error"]["code"] == "ADMIN_ACCESS_DENIED"
+
+    # A non-admin account cannot sign in to the admin console at all
+    outsider_email = _email()
+    client.post("/api/auth/register", json={"name": "Not Admin", "email": outsider_email, "password": "Str0ngPass"})
+    r = client.post("/api/auth/admin/login", json={"email": outsider_email, "password": "Str0ngPass"})
+    assert r.status_code == 403 and r.json()["error"]["code"] == "ADMIN_ACCESS_DENIED"
+
+    # ADMIN via the admin login -> allowed on admin routes, and admin/API access work together
+    assert client.get("/api/admin/overview", headers=admin).status_code == 200
+    assert client.get("/api/admin/users", headers=admin).status_code == 200
+    assert client.get("/api/admin/audit-logs", headers=admin).status_code == 200
+
+    # An admin-scoped session must not be usable as an app session (routes are separated both ways)
+    r = client.get("/api/innovations", headers=admin)
+    assert r.status_code == 401
+
+    # /api/auth/admin/session never 401s; it reports state instead
+    s = client.get("/api/auth/admin/session", headers=researcher)
+    assert s.status_code == 200 and s.json()["data"]["state"] == "user_not_admin"
+    s2 = fresh.get("/api/auth/admin/session")  # same fresh, cookie-free client as above
+    assert s2.status_code == 200 and s2.json()["data"]["state"] == "signed_out"
+    s3 = client.get("/api/auth/admin/session", headers=admin)
+    assert s3.status_code == 200 and s3.json()["data"]["state"] == "admin"
+
+
+def test_user_a_cannot_read_user_b_private_data_via_admin_document_view(client, admin, researcher):
+    """Admins see workspace uploads' metadata/status, never their private content (data isolation, §9)."""
+    r = client.post("/api/documents", headers=researcher, files={"file": ("priv.txt", b"Section 1. Confidential formulation ratio 3:1.", "text/plain")},
+                    data={"title": "Private note", "privacy_ack": "true"})
+    doc_id = r.json()["data"]["job"]["document_id"] if r.json()["data"]["job"].get("document_id") else None
+    if not doc_id:
+        job = client.get(f"/api/ingestion-jobs/{r.json()['data']['job']['id']}", headers=researcher).json()["data"]
+        doc_id = job["document"]["id"]
+    d = client.get(f"/api/admin/documents/{doc_id}", headers=admin).json()["data"]
+    assert d["workspace_private"] is True
+    assert all(c["content"] is None for c in d["chunks"])
 
 
 def test_validation_error_envelope(client, researcher):

@@ -8,7 +8,7 @@ export default function AdminWorkspaces() {
   const q = useQuery({ queryKey: ['admin-ws'], queryFn: () => get<any[]>('/admin/workspaces') });
   return (
     <div>
-      <PageHeader eyebrow="Admin" title="Workspaces" />
+      <PageHeader eyebrow="Admin console" title="Workspaces" />
       {q.isLoading && <Spinner />}
       {q.isError && <ErrorState error={q.error} onRetry={() => q.refetch()} />}
       <div className="overflow-x-auto rounded-lg border border-surface-border bg-surface-elevated">

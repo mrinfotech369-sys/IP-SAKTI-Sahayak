@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     JWT_SECRET: str = "dev-only-change-me"
     SESSION_SECRET: str = "dev-only-change-me"
     ACCESS_TOKEN_TTL_MINUTES: int = 60 * 12
+    ADMIN_SESSION_TTL_MINUTES: int = 120
+    LOGIN_ATTEMPTS_PER_MINUTE: int = 10
+    # Bootstrap admin (seed/create_admin). Never hard-code production credentials.
+    ADMIN_EMAIL: str = ""
+    ADMIN_PASSWORD: str = ""
 
     # LLM Provider: ollama | gemini | groq | grok | openai | deepseek | mock
     LLM_PROVIDER: str = "mock"

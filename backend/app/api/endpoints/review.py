@@ -8,7 +8,7 @@ from app.api.deps import WorkspaceCtx, get_db, rate_limit, resolve_workspace, wo
 from app.core.responses import not_found, ok
 from app.models.orm import (
     AuditLog, Conversation, Escalation, EscalationStatus, EscalationType, Feedback, Innovation, InnovationStatus, Message, Report, User,
-    UserRole, WorkspaceRole,
+    WorkspaceRole,
 )
 from app.schemas import EscalationIn, EscalationPatch, FeedbackIn, FeedbackPatch, ReportIn
 from app.services.audit import audit
@@ -186,9 +186,7 @@ def create_feedback(body: FeedbackIn, request: Request, ctx: WorkspaceCtx = Depe
 
 @router.get("/feedback")
 def list_feedback(status: str | None = None, ctx: WorkspaceCtx = Depends(workspace_ctx), db: Session = Depends(get_db)):
-    q = select(Feedback)
-    if ctx.user.role != UserRole.ADMIN:
-        q = q.where(Feedback.workspace_id == ctx.workspace_id)
+    q = select(Feedback).where(Feedback.workspace_id == ctx.workspace_id)
     if status:
         q = q.where(Feedback.status == status)
     return ok([fb_view(f) for f in db.execute(q.order_by(Feedback.created_at.desc()).limit(200)).scalars()])
@@ -199,7 +197,7 @@ def review_feedback(feedback_id: str, body: FeedbackPatch, request: Request, ctx
     f = db.get(Feedback, feedback_id)
     if not f:
         raise not_found("Feedback")
-    rctx = resolve_workspace(db, ctx.user, f.workspace_id) if ctx.user.role != UserRole.ADMIN else ctx
+    rctx = resolve_workspace(db, ctx.user, f.workspace_id)
     rctx.require(WorkspaceRole.REVIEWER)
     f.status = body.status
     f.resolution_note = body.resolution_note

@@ -4,6 +4,8 @@ Success: {"success": true, "data": ..., "meta": {...}}
 Error:   {"success": false, "error": {"code": "...", "message": "..."}}
 """
 import logging
+from collections import deque
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from fastapi import FastAPI, HTTPException, Request
@@ -11,6 +13,13 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 logger = logging.getLogger("ipsakti")
+
+# Last unhandled errors since process start (for the admin console). No request bodies are kept.
+_ERRORS: deque = deque(maxlen=50)
+
+
+def recent_errors() -> list[dict]:
+    return list(reversed(_ERRORS))
 
 
 def ok(data: Any = None, **meta: Any) -> dict:
@@ -76,6 +85,8 @@ def install_error_handlers(app: FastAPI) -> None:
     async def _unhandled(request: Request, exc: Exception):
         request_id = getattr(request.state, "request_id", None)
         logger.exception("Unhandled error request_id=%s path=%s", request_id, request.url.path)
+        _ERRORS.append({"at": datetime.now(timezone.utc).isoformat(), "path": request.url.path, "method": request.method,
+                        "error": type(exc).__name__, "request_id": request_id})
         return _error(
             500,
             "INTERNAL_ERROR",

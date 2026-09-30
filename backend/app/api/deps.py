@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.responses import AppError, forbidden, not_found
-from app.core.security import SESSION_COOKIE, decode_access_token
+from app.core.security import ADMIN_SESSION_COOKIE, SESSION_COOKIE, decode_access_token
 from app.db import get_db
 from app.models.orm import Innovation, User, UserRole, WorkspaceMember, WorkspaceRole
 
@@ -26,26 +26,13 @@ ROLE_RANK = {
 }
 
 
-def _token_from_request(request: Request, authorization: Optional[str]) -> Optional[str]:
+def _token_from_request(request: Request, authorization: Optional[str], cookie: str) -> Optional[str]:
     if authorization and authorization.lower().startswith("bearer "):
         return authorization[7:].strip()
-    return request.cookies.get(SESSION_COOKIE)
+    return request.cookies.get(cookie)
 
 
-def current_user(
-    request: Request,
-    db: Session = Depends(get_db),
-    authorization: Optional[str] = Header(default=None),
-) -> User:
-    token = _token_from_request(request, authorization)
-    if not token:
-        raise AppError(401, "UNAUTHORIZED", "Please sign in to continue.")
-    user_id = decode_access_token(token)
-    if not user_id:
-        raise AppError(401, "SESSION_EXPIRED", "Your session has expired. Please sign in again.")
-    user = db.get(User, user_id)
-    if not user or not user.is_active:
-        raise AppError(401, "UNAUTHORIZED", "This account is not active.")
+def _csrf(request: Request, authorization: Optional[str]) -> None:
     # CSRF defence for cookie-authenticated writes: browsers cannot set this
     # custom header cross-site without a CORS preflight we do not allow.
     if (
@@ -54,13 +41,52 @@ def current_user(
         and request.headers.get("x-requested-with") != "ipsakti"
     ):
         raise AppError(403, "CSRF_CHECK_FAILED", "Request is missing the X-Requested-With header.")
+
+
+def current_user(
+    request: Request,
+    db: Session = Depends(get_db),
+    authorization: Optional[str] = Header(default=None),
+) -> User:
+    """Application (user-side) session. Admin-console tokens are not accepted here."""
+    token = _token_from_request(request, authorization, SESSION_COOKIE)
+    if not token:
+        raise AppError(401, "UNAUTHORIZED", "Please sign in to continue.")
+    user_id = decode_access_token(token, scope="user")
+    if not user_id:
+        raise AppError(401, "SESSION_EXPIRED", "Your session has expired. Please sign in again.")
+    user = db.get(User, user_id)
+    if not user or not user.is_active:
+        raise AppError(401, "UNAUTHORIZED", "This account is not active.")
+    _csrf(request, authorization)
     request.state.user_id = user.id
     return user
 
 
-def require_admin(user: User = Depends(current_user)) -> User:
-    if user.role != UserRole.ADMIN:
+def require_admin(
+    request: Request,
+    db: Session = Depends(get_db),
+    authorization: Optional[str] = Header(default=None),
+) -> User:
+    """Admin console: requires an admin-scoped session AND role=ADMIN, re-checked on every request."""
+    token = _token_from_request(request, authorization, ADMIN_SESSION_COOKIE)
+    if not token:
+        # A signed-in *user* session is not enough — say so explicitly (403), otherwise 401.
+        if request.cookies.get(SESSION_COOKIE) or authorization:
+            raise AppError(403, "ADMIN_ACCESS_DENIED", "Administrator access is required. Sign in through the admin login.")
+        raise AppError(401, "ADMIN_UNAUTHORIZED", "Please sign in to the admin console.")
+    user_id = decode_access_token(token, scope="admin")
+    if not user_id:
+        if decode_access_token(token, scope="user"):
+            raise AppError(403, "ADMIN_ACCESS_DENIED", "Administrator access is required. Sign in through the admin login.")
+        raise AppError(401, "ADMIN_SESSION_EXPIRED", "Your admin session has expired. Please sign in again.")
+    user = db.get(User, user_id)
+    if not user or not user.is_active:
+        raise AppError(401, "ADMIN_UNAUTHORIZED", "This account is not active.")
+    if user.role != UserRole.ADMIN:  # role may have been revoked after login
         raise forbidden("Administrator access is required.")
+    _csrf(request, authorization)
+    request.state.user_id = user.id
     return user
 
 
@@ -71,8 +97,6 @@ class WorkspaceCtx:
     role: WorkspaceRole
 
     def require(self, minimum: WorkspaceRole) -> None:
-        if self.user.role == UserRole.ADMIN:
-            return
         if ROLE_RANK[self.role] < ROLE_RANK[minimum]:
             raise forbidden(f"This action requires the {minimum.value} role or higher in this workspace.")
 

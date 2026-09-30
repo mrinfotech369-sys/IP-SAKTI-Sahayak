@@ -84,7 +84,7 @@ class RetrievalFilters:
 
 
 def _filter_sql(f: RetrievalFilters, params: dict) -> str:
-    clauses = ["s.active = true", "d.access_level <> 'RESTRICTED'"]
+    clauses = ["s.active = true", "d.access_level <> 'RESTRICTED'", "d.review_status <> 'REJECTED'"]
     if f.workspace_id:
         clauses.append("(d.workspace_id IS NULL OR d.workspace_id = :ws)")
         params["ws"] = f.workspace_id

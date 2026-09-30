@@ -142,7 +142,7 @@ def test_health_endpoints(client):
 
 
 def test_evaluation_suite_runs(client, admin):
-    r = client.post("/api/evaluations/run", headers=admin)
+    r = client.post("/api/admin/evaluations/run", headers=admin)
     assert r.status_code == 200, r.text
     m = r.json()["data"]["metrics"]
     assert m["questions"] == 20 and m["test_set_size"] == 20

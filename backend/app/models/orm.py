@@ -570,6 +570,8 @@ class Escalation(Base):
     status: Mapped[EscalationStatus] = mapped_column(
         _enum(EscalationStatus, "escalation_status"), default=EscalationStatus.OPEN
     )
+    assigned_to: Mapped[Optional[str]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    reviewer_notes: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
     created_by: Mapped[Optional[str]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)

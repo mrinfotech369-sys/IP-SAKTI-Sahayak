@@ -45,7 +45,15 @@ def client(seeded_db):
 
 
 def login(client, email="researcher@ipsakti.demo", password="Demo@12345") -> dict:
+    """User-area session (scope='user'). Never valid on /api/admin/* routes, even for an ADMIN-role account."""
     r = client.post("/api/auth/login", json={"email": email, "password": password})
+    assert r.status_code == 200, r.text
+    return {"Authorization": f"Bearer {r.json()['data']['token']}"}
+
+
+def admin_login(client, email="admin@ipsakti.demo", password="Demo@12345") -> dict:
+    """Admin console session (scope='admin'), via the separate /api/auth/admin/login."""
+    r = client.post("/api/auth/admin/login", json={"email": email, "password": password})
     assert r.status_code == 200, r.text
     return {"Authorization": f"Bearer {r.json()['data']['token']}"}
 
@@ -57,7 +65,7 @@ def researcher(client):
 
 @pytest.fixture(scope="session")
 def admin(client):
-    return login(client, "admin@ipsakti.demo")
+    return admin_login(client)
 
 
 @pytest.fixture(scope="session")

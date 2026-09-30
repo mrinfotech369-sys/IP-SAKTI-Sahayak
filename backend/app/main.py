@@ -15,11 +15,11 @@ from fastapi import FastAPI, Request  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 
 from app.api.endpoints import (  # noqa: E402
-    admin,
+    admin_console,
     auth,
     chat,
     corpus,
-    evaluations,
+    dashboard,
     health,
     innovations,
     review,
@@ -98,7 +98,7 @@ async def request_context(request: Request, call_next):
 
 install_error_handlers(app)
 
-for r in (auth, workspaces, innovations, chat, search, review, corpus, admin, evaluations):
+for r in (auth, workspaces, innovations, chat, search, review, corpus, dashboard, admin_console):
     app.include_router(r.router, prefix=settings.API_PREFIX)
 app.include_router(health.router)
 app.include_router(health.router, prefix=settings.API_PREFIX, include_in_schema=False)

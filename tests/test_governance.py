@@ -60,7 +60,7 @@ def test_update_queue_and_document_curation(client, admin, db):
     q = client.get("/api/admin/update-queue", headers=admin).json()["data"]
     assert q and q[0]["update_status"] in ("Overdue", "Review due", "Superseded", "Never checked")
     doc_id = q[0]["document_id"]
-    d = client.patch(f"/api/documents/{doc_id}/review", headers=admin, json={"action": "mark_checked", "note": "Re-verified"}).json()["data"]
+    d = client.patch(f"/api/admin/documents/{doc_id}/review", headers=admin, json={"action": "mark_checked", "note": "Re-verified"}).json()["data"]
     assert d["update_status"] == "Up to date"
 
 
@@ -91,7 +91,7 @@ def test_scanned_pdf_is_ocrd(client, researcher):
 def test_retention_metrics_privacy(client, admin, researcher):
     r = client.post("/api/admin/retention/run?dry_run=true", headers=admin).json()["data"]
     assert r["dry_run"] is True and r["workspaces"]
-    m = client.get("/api/metrics", headers=admin).json()["data"]
+    m = client.get("/api/admin/metrics", headers=admin).json()["data"]
     assert m["latency_ms"]["p50"] is not None and "projection_10k_users" in m and m["corpus"]["documents"] >= 39
     p = client.get("/api/privacy", headers=researcher).json()["data"]
     assert p["retention"]["policy"] and p["llm"]["policy"] and p["upload_notice"]

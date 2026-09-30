@@ -2,8 +2,8 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Activity, BarChart3, Grid3x3, Lock, MessageSquareWarning, RefreshCw, BookOpen, Bot, ClipboardList, Database, FileStack, FileText, FlaskConical, Gauge, GitBranch,
-  Landmark, Layers, LayoutDashboard, Leaf, LogOut, Map, Menu, PlusCircle, ScrollText, Search, Settings, ShieldAlert, Users,
+  BarChart3, Grid3x3, Lock, MessageSquareWarning, BookOpen, Bot, ClipboardList, Database, FileStack, FileText, FlaskConical, GitBranch,
+  Landmark, Layers, LayoutDashboard, Leaf, LogOut, Map, Menu, PlusCircle, ScrollText, Settings, ShieldAlert, ShieldCheck,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -67,17 +67,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       { href: '/app/settings', label: t.nav.settings, icon: Settings },
     ] },
   ];
-  if (user.role === 'ADMIN') {
-    groups.push({ title: t.nav.admin, items: [
-      { href: '/app/admin', label: t.nav.health, icon: Activity },
-      { href: '/app/admin/users', label: t.nav.users, icon: Users },
-      { href: '/app/admin/workspaces', label: t.nav.workspaces, icon: Layers },
-      { href: '/app/admin/sources', label: t.nav.sourceRegistry, icon: Database },
-      { href: '/app/admin/ingestion', label: t.nav.ingestion, icon: Search },
-      { href: '/app/admin/update-queue', label: t.nav.updateQueue, icon: RefreshCw },
-      { href: '/app/admin/evaluation', label: t.nav.evaluation, icon: Gauge },
-    ] });
-  }
+  // Intentionally no "Admin" nav group here: the admin console (/admin/*) is a fully separate
+  // area with its own login, session and layout — see app/admin/layout.tsx. Mixing it into this
+  // sidebar would defeat that separation. ADMIN-role users get a single discovery link below,
+  // in the footer, which sends them to the admin console's own sign-in (an app session here is
+  // never sufficient by itself).
 
   const isActive = (href: string) => (href === '/app' ? path === '/app' : path === href || (path.startsWith(href + '/') && href !== '/app/innovations') || (href === '/app/innovations' && path.startsWith('/app/innovations/') && !path.startsWith('/app/innovations/new')));
   const status = health.data?.status;
@@ -116,10 +110,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         ))}
       </div>
       <div className="border-t border-white/10 p-3 text-[11px] text-white/60">
-        <Link href={user.role === 'ADMIN' ? '/app/admin' : '/app/settings'} className="flex items-center gap-1.5">
+        <Link href="/app/settings" className="flex items-center gap-1.5">
           <span className={cx('h-2 w-2 rounded-full', status === 'ok' ? 'bg-emerald-400' : status ? 'bg-amber-400' : 'bg-white/30')} />
           System {status || 'checking'} · LLM {health.data?.llm_provider || '…'}
         </Link>
+        {user.role === 'ADMIN' && (
+          <Link href="/admin/login" className="mt-2 flex items-center gap-1.5 rounded border border-white/10 px-2 py-1 text-white/80 hover:border-white/30 hover:text-white">
+            <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
+            {lang === 'hi' ? 'व्यवस्थापक कंसोल (अलग साइन-इन) →' : 'Admin console (separate sign-in) →'}
+          </Link>
+        )}
       </div>
     </nav>
   );

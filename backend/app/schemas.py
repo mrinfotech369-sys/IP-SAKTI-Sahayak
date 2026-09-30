@@ -20,6 +20,16 @@ class LoginIn(BaseModel):
     password: str = Field(min_length=1, max_length=128)
 
 
+class ProfilePatchIn(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=2, max_length=200)
+    preferred_language: Optional[Lang] = None
+
+
+class PasswordChangeIn(BaseModel):
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=8, max_length=128)
+
+
 class WorkspaceIn(BaseModel):
     name: str = Field(min_length=2, max_length=200)
     confidential_mode: bool = False
@@ -170,6 +180,13 @@ class EscalationPatch(BaseModel):
     status: Literal["OPEN", "IN_REVIEW", "RESOLVED", "CLOSED"]
 
 
+class AdminEscalationPatch(BaseModel):
+    status: Optional[Literal["OPEN", "IN_REVIEW", "RESOLVED", "CLOSED"]] = None
+    assigned_to: Optional[str] = None
+    unassign: bool = False
+    note: Optional[str] = Field(default=None, min_length=1, max_length=2000)
+
+
 class ReportIn(BaseModel):
     innovation_id: str
 
@@ -187,7 +204,7 @@ class SourceIn(BaseModel):
 
 
 class DocumentReview(BaseModel):
-    action: Literal["mark_checked", "approve", "mark_superseded"]
+    action: Literal["mark_checked", "approve", "mark_superseded", "reject", "restore"]
     superseded_by: Optional[str] = None
     version: Optional[str] = Field(default=None, max_length=80)
     effective_date: Optional[str] = Field(default=None, max_length=20)

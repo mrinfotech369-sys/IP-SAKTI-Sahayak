@@ -65,9 +65,14 @@ export async function api<T = any>(path: string, opts: Opts = {}): Promise<T> {
   }
   if (!res.ok || body?.success === false) {
     const e = body?.error || {};
+    // A 401 from an /admin/* call (or while on an /admin page) means the *admin* session is
+    // missing/expired — send back to the separate admin login, never the app's user login.
     if (res.status === 401 && typeof window !== 'undefined' && !path.startsWith('/auth/')) {
+      const inAdminArea = path.startsWith('/admin/') || window.location.pathname.startsWith('/admin');
+      const loginPath = inAdminArea ? '/admin/login' : '/login';
       const next = encodeURIComponent(window.location.pathname + window.location.search);
-      window.location.href = `/login?next=${next}&reason=${e.code === 'SESSION_EXPIRED' ? 'expired' : 'auth'}`;
+      const expired = e.code === 'SESSION_EXPIRED' || e.code === 'ADMIN_SESSION_EXPIRED';
+      window.location.href = `${loginPath}?next=${next}&reason=${expired ? 'expired' : 'auth'}`;
     }
     throw new ApiError(res.status, e.code || 'HTTP_ERROR', e.message || `Request failed (HTTP ${res.status}).`, e.details);
   }

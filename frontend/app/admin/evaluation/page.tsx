@@ -1,9 +1,9 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { Badge, Button, Card, ErrorState, Notice, PageHeader, ProgressSteps, Spinner, Stat, fmtDateTime, useStepTicker } from '@/components/ui';
 import { get, post } from '@/lib/api';
-import { useState } from 'react';
 
 const METRICS: [string, string][] = [
   ['test_set_size', 'Test-set size'], ['recall_at_k', 'Recall@6'], ['retrieval_precision', 'Precision@k'], ['retrieval_recall', 'Relevant-source hit rate'], ['ndcg', 'nDCG'], ['citation_correctness', 'Citation correctness'],
@@ -13,19 +13,19 @@ const METRICS: [string, string][] = [
 
 export default function Evaluation() {
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: ['evaluations'], queryFn: () => get('/evaluations') });
-  const run = useMutation({ mutationFn: () => post('/evaluations/run'), onSuccess: () => qc.invalidateQueries({ queryKey: ['evaluations'] }) });
+  const q = useQuery({ queryKey: ['admin-evaluations'], queryFn: () => get('/admin/evaluations') });
+  const run = useMutation({ mutationFn: () => post('/admin/evaluations/run'), onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-evaluations'] }) });
   const [active, setActive] = useState(0);
   useStepTicker(run.isPending, 3, setActive, 600);
-  const latest = run.data || q.data?.latest;
+  const latest: any = run.data || (q.data as any)?.latest;
   return (
     <div className="space-y-5">
-      <PageHeader eyebrow="Admin" title="RAG Evaluation" subtitle="Runs the seeded evaluation set through the live pipeline. Every number is computed from actual outputs — nothing is hardcoded."
+      <PageHeader eyebrow="Admin console" title="RAG Evaluation" subtitle="Runs the seeded evaluation set through the live pipeline. Every number is computed from actual outputs — nothing is hardcoded."
         actions={<Button onClick={() => run.mutate()} loading={run.isPending}>Run evaluation</Button>} />
       {run.isPending && <Card><ProgressSteps steps={['Running the question set through the pipeline and baselines…', 'Scoring retrieval & citations…', 'Computing metrics…']} active={active} /></Card>}
       {run.isError && <ErrorState error={run.error} />}
       {q.isLoading && <Spinner />}
-      {!latest && q.data && <Notice tone="info">No evaluation has been run yet. Click “Run evaluation”.</Notice>}
+      {!latest && q.data && <Notice tone="info">No evaluation has been run yet. Click "Run evaluation".</Notice>}
       {latest && (
         <>
           <p className="text-xs text-text-muted">Run {fmtDateTime(latest.created_at)} · LLM {latest.llm_provider} · embeddings {latest.embedding_provider} · passed {latest.metrics.passed}/{latest.metrics.questions}</p>
@@ -72,8 +72,8 @@ export default function Evaluation() {
           </Card>
         </>
       )}
-      {q.data?.history?.length > 1 && (
-        <Card title="History"><ul className="space-y-1 text-xs">{q.data.history.map((h: any) => <li key={h.id}>{fmtDateTime(h.created_at)} — passed {h.metrics.passed}/{h.metrics.questions} · abstention {h.metrics.abstention_accuracy} · entailment {h.metrics.citation_entailment}</li>)}</ul></Card>
+      {(q.data as any)?.history?.length > 1 && (
+        <Card title="History"><ul className="space-y-1 text-xs">{(q.data as any).history.map((h: any) => <li key={h.id}>{fmtDateTime(h.created_at)} — passed {h.metrics.passed}/{h.metrics.questions} · abstention {h.metrics.abstention_accuracy} · entailment {h.metrics.citation_entailment}</li>)}</ul></Card>
       )}
     </div>
   );

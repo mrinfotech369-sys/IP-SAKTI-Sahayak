@@ -12,7 +12,8 @@ IP-SAKTI Sahayak helps Ayurveda researchers, startups, MSMEs, patent and regulat
 
 | Area | What it does |
 |---|---|
-| Auth & workspaces | Register/login (bcrypt + JWT in an httpOnly cookie), workspace RBAC (OWNER/ADMIN/RESEARCHER/REVIEWER/VIEWER), workspace isolation, CSRF header check, session expiry |
+| Auth & workspaces | Register/login (bcrypt + JWT in an httpOnly cookie), workspace RBAC (OWNER/ADMIN/RESEARCHER/REVIEWER/VIEWER), workspace isolation, CSRF header check, session expiry, brute-force throttling |
+| Admin console | Fully separate area and login (`/admin/login`, scoped session/cookie — an app session never grants access): system dashboard, users, workspaces, source registry, document management (review/reject/re-index), RAG monitoring, citation verification monitoring, evaluation, escalations (assign + notes), feedback, filterable audit log with CSV export, read-only settings |
 | Innovation Profiler | 7-step wizard → structured profile, technical features, terminology normalisation, missing information and ambiguities (never invented), user editing/confirmation |
 | Terminology engine | Sanskrit / Hindi / English / botanical / chemical mapping; ambiguous common names (e.g. *Brahmi*) are flagged, not silently mapped |
 | AI Research Assistant | Conversations, 6 modes, language/jurisdiction/source filters, structured answers (answer → key points → evidence → status → limitations → next step), copy/regenerate/feedback/flag, add-to-innovation |
@@ -117,13 +118,21 @@ LLM_MODEL=qwen2.5:7b
 
 Model names change over time. Set `LLM_MODEL` to one the provider currently lists. Keep `.env` comments on their own lines, never after a value.
 
-Restart the backend and check `GET /health/llm` (or Admin → System Health). With a key: answers are synthesised (and verified), Hindi answers are generated in Hindi, Hindi queries are translated for retrieval, each claim gets an LLM entailment check, profile extraction adds AI-suggested features (marked *needs confirmation*), and cost per query is measured. If the provider fails at runtime, answers fall back to extractive mode and say so.
+Restart the backend and check `GET /health/llm` (or the admin console's System Health tile — see below). With a key: answers are synthesised (and verified), Hindi answers are generated in Hindi, Hindi queries are translated for retrieval, each claim gets an LLM entailment check, profile extraction adds AI-suggested features (marked *needs confirmation*), and cost per query is measured. If the provider fails at runtime, answers fall back to extractive mode and say so.
 
 ## Demo
 
-Logins (password `Demo@12345`): `researcher@ipsakti.demo` (Researcher), `reviewer@ipsakti.demo` (Reviewer), `admin@ipsakti.demo` (Owner + system admin). **Explore Demo** on the landing page pre-fills the researcher login.
+App logins (password `Demo@12345`): `researcher@ipsakti.demo` (Researcher), `reviewer@ipsakti.demo` (Reviewer). **Explore Demo** on the landing page pre-fills the researcher login.
 
-Hackathon flow: Login → Dashboard → *AyuCalm-X (DEMO)* → Profile (note the Brahmi ambiguity and the disease-claim flag) → *Ask about this innovation* (citations, verification, search trace, conflicting sources) → Scientific (ingredient vs formulation) → Patents (feature matrix, families) → Traditional Knowledge → Classification → Regulatory Passport (India / USA / Australia and comparison) → Gaps & Risk → Evidence Graph (click nodes and edges) → Escalation & Report → export → Audit Trail. Admins additionally see System Health, Source Registry, Ingestion and **RAG Evaluation** (run it live).
+Hackathon flow: Login → Dashboard → *AyuCalm-X (DEMO)* → Profile (note the Brahmi ambiguity and the disease-claim flag) → *Ask about this innovation* (citations, verification, search trace, conflicting sources) → Scientific (ingredient vs formulation) → Patents (feature matrix, families) → Traditional Knowledge → Classification → Regulatory Passport (India / USA / Australia and comparison) → Gaps & Risk → Evidence Graph (click nodes and edges) → Escalation & Report → export → Audit Trail.
+
+### Admin console (separate area, separate login)
+
+The admin console is a fully separate part of the site, not a tab inside the app: **http://localhost:3000/admin/login**, credentials `admin@ipsakti.demo` / `Demo@12345`. It requires its own sign-in even for an ADMIN-role account already signed in to the app — the app session alone is never enough. From inside the app, an ADMIN-role user sees a single "Admin console (separate sign-in)" link at the bottom of the sidebar.
+
+It covers: Dashboard (system-wide analytics, health, retention), Users, Workspaces, Source Registry, Documents (upload, review, reject, re-index), RAG Monitoring (retrieval stats, failed retrievals, abstentions, latency), Citation Verification Monitoring, RAG Evaluation (run it live), Escalations (assign a reviewer, add notes), Feedback, Audit Logs (filterable, CSV export) and Settings (effective config, secrets masked).
+
+For a production deployment, never rely on the fixed-password demo admin above — set `ADMIN_EMAIL` / `ADMIN_PASSWORD` in `.env` and run `PYTHONPATH=backend:. .venv/bin/python -m app.seed.create_admin` once to create or promote a real admin account.
 
 Useful assistant prompts: the six example cards on the empty chat screen cover a factual question, a regulatory question, a cross-jurisdiction question, a Hindi question, prior art and a restricted-TKDL refusal.
 
@@ -167,7 +176,7 @@ docker compose up -d postgres
 
 ## Known limitations
 
-- The corpus is a curated seed (40 documents), not a live feed. Statute summaries need verification, and patents are fictional. Use Admin → Ingestion to add official documents.
+- The corpus is a curated seed (40 documents), not a live feed. Statute summaries need verification, and patents are fictional. Use the admin console's Documents → Ingest New tab to add official documents.
 - The default `hashing` embeddings capture shared vocabulary, not synonyms (terminology expansion covers much of this). Use `EMBEDDING_PROVIDER=openai` or `bge_m3` for semantic embeddings. Changing the embedding provider requires reseeding (`--reset`) so stored vectors match.
 - Without an LLM key, answers are extractive quotes rather than synthesis.
 - OCR uses Tesseract (English + Hindi when `hin.traineddata` is installed). Results below 70% confidence are sent for human validation.

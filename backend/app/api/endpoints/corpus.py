@@ -6,9 +6,9 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Request, Up
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
-from app.api.deps import WorkspaceCtx, get_db, rate_limit, require_admin, workspace_ctx
+from app.api.deps import WorkspaceCtx, get_db, rate_limit, workspace_ctx
 from app.core.responses import AppError, not_found, ok
-from app.models.orm import Document, DocumentChunk, IngestionJob, Source, User, UserRole, WorkspaceRole
+from app.models.orm import Document, DocumentChunk, IngestionJob, Source, WorkspaceRole
 from app.core.config import settings
 from app.schemas import DocumentReview, SourceIn, SourcePatch
 from app.services.audit import audit
@@ -47,30 +47,6 @@ def list_sources(ctx: WorkspaceCtx = Depends(workspace_ctx), db: Session = Depen
     counts = dict(db.execute(select(Document.source_id, func.count()).group_by(Document.source_id)).all())
     rows = db.execute(select(Source).order_by(Source.authority_tier, Source.name)).scalars()
     return ok([source_view(s, counts.get(s.id, 0)) for s in rows])
-
-
-@router.post("/sources", summary="Register a source (admin)")
-def create_source(body: SourceIn, request: Request, user: User = Depends(require_admin), db: Session = Depends(get_db)):
-    s = Source(**body.model_dump(), last_checked=None)
-    db.add(s)
-    db.flush()
-    audit(db, "source_modified", user_id=user.id, entity_type="source", entity_id=s.id, request=request, change="created")
-    return ok(source_view(s))
-
-
-@router.patch("/sources/{source_id}", summary="Update a source (admin)")
-def update_source(source_id: str, body: SourcePatch, request: Request, user: User = Depends(require_admin), db: Session = Depends(get_db)):
-    s = db.get(Source, source_id)
-    if not s:
-        raise not_found("Source")
-    changes = body.model_dump(exclude_none=True)
-    mark = changes.pop("mark_checked", False)
-    for k, v in changes.items():
-        setattr(s, k, v)
-    if mark:
-        s.last_checked = datetime.now(timezone.utc)
-    audit(db, "source_modified", user_id=user.id, entity_type="source", entity_id=s.id, request=request, changes=sorted(changes) + (["last_checked"] if mark else []))
-    return ok(source_view(s))
 
 
 @router.get("/documents")
@@ -148,60 +124,18 @@ async def upload_document(request: Request, background: BackgroundTasks, file: U
     return _ingest(request, db, ctx, background, file.filename or "upload", data, meta=meta, source_id=src.id, workspace_scope=True)
 
 
-@router.post("/documents/ingest", dependencies=[Depends(rate_limit("ingest"))], summary="Ingest an official document into the global corpus (admin)")
-async def ingest_document(request: Request, background: BackgroundTasks, file: UploadFile = File(...), title: str = Form(...), source_id: str = Form(...),
-                          jurisdiction: str = Form(...), domain: str = Form(...), document_type: str = Form(...), language: str = Form("en"),
-                          publication_date: Optional[str] = Form(None), effective_date: Optional[str] = Form(None), url: Optional[str] = Form(None),
-                          ctx: WorkspaceCtx = Depends(workspace_ctx), db: Session = Depends(get_db)):
-    if ctx.user.role != UserRole.ADMIN:
-        raise AppError(403, "FORBIDDEN", "Only administrators can ingest into the global corpus.")
-    data = await file.read()
-    meta = {"title": title, "jurisdiction": jurisdiction, "domain": domain, "document_type": document_type, "language": language,
-            "publication_date": publication_date, "effective_date": effective_date, "url": url}
-    return _ingest(request, db, ctx, background, file.filename or "upload", data, meta=meta, source_id=source_id, workspace_scope=False)
-
-
 @router.get("/ingestion-jobs/{job_id}")
 def ingestion_job(job_id: str, ctx: WorkspaceCtx = Depends(workspace_ctx), db: Session = Depends(get_db)):
     j = db.get(IngestionJob, job_id)
-    if not j or (ctx.user.role != UserRole.ADMIN and j.workspace_id != ctx.workspace_id):
+    if not j or j.workspace_id != ctx.workspace_id:
         raise not_found("Ingestion job")
     d = db.get(Document, j.document_id) if j.document_id else None
     return ok({"job": job_view(j), "document": doc_view(d) if d else None})
 
 
-@router.patch("/documents/{document_id}/review", summary="Curate a document: mark checked, approve, or mark superseded (admin)")
-def review_document(document_id: str, body: DocumentReview, request: Request, user: User = Depends(require_admin), db: Session = Depends(get_db)):
-    d = db.get(Document, document_id)
-    if not d:
-        raise not_found("Document")
-    if body.action == "mark_checked":
-        d.last_checked = datetime.now(timezone.utc)
-    elif body.action == "approve":
-        d.review_status = "VERIFIED"
-        d.last_checked = datetime.now(timezone.utc)
-    elif body.action == "mark_superseded":
-        new = db.get(Document, body.superseded_by or "")
-        if not new:
-            raise AppError(422, "SUPERSEDING_DOCUMENT_REQUIRED", "Give the id of the document that supersedes this one.")
-        d.superseded_by_document_id = new.id
-        new.supersedes_document_id = d.id
-    if body.version:
-        d.version = body.version
-    if body.effective_date:
-        d.effective_date = body.effective_date
-    audit(db, "source_modified", user_id=user.id, entity_type="document", entity_id=d.id, request=request, review_action=body.action, note=body.note)
-    return ok(doc_view(d))
-
-
 @router.get("/coverage", summary="Jurisdiction × domain coverage matrix computed from the ingested corpus")
 def coverage_matrix(ctx: WorkspaceCtx = Depends(workspace_ctx), db: Session = Depends(get_db)):
     return ok(coverage(db))
-
-
-@router.get("/admin/update-queue", summary="Documents due for re-checking, by source update frequency")
-def admin_update_queue(user: User = Depends(require_admin), db: Session = Depends(get_db)):
-    return ok(update_queue(db))
 
 
 @router.get("/privacy", summary="Where data is stored and sent, retention, and LLM provider data handling")
@@ -230,7 +164,5 @@ def job_view(j: IngestionJob) -> dict:
 
 @router.get("/ingestion-jobs")
 def ingestion_jobs(ctx: WorkspaceCtx = Depends(workspace_ctx), db: Session = Depends(get_db)):
-    q = select(IngestionJob)
-    if ctx.user.role != UserRole.ADMIN:
-        q = q.where(IngestionJob.workspace_id == ctx.workspace_id)
+    q = select(IngestionJob).where(IngestionJob.workspace_id == ctx.workspace_id)
     return ok([job_view(j) for j in db.execute(q.order_by(IngestionJob.created_at.desc()).limit(100)).scalars()])
