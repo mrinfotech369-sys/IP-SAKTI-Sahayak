@@ -4,46 +4,77 @@
 
 @layer base {
   body {
-    @apply bg-darkbg text-text-main font-sans min-h-screen selection:bg-accent selection:text-white;
-    background-image: radial-gradient(rgba(201, 162, 74, 0.1) 1px, transparent 1px);
-    background-size: 24px 24px;
+    @apply bg-darkbg text-text-main font-sans min-h-screen;
   }
-  
-  input, textarea, select {
-    background-color: theme('colors.surface');
-    color: theme('colors.text-main');
-    border-color: theme('colors.surface-border');
-    border-width: 1px;
-    outline: none;
-    transition-property: color, background-color, border-color, box-shadow;
-    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-    transition-duration: 150ms;
-    caret-color: theme('colors.accent');
+  input,
+  textarea,
+  select {
+    @apply bg-surface text-text-main border border-surface-border rounded-md px-3 py-2 text-sm outline-none transition;
   }
-
-  input:focus, textarea:focus, select:focus {
-    border-color: theme('colors.accent');
-    box-shadow: 0 0 0 1px theme('colors.accent');
+  input:focus,
+  textarea:focus,
+  select:focus {
+    @apply border-green ring-1 ring-green;
   }
-
-  input::placeholder, textarea::placeholder {
-    color: theme('colors.text-muted');
-    opacity: 1;
+  input::placeholder,
+  textarea::placeholder {
+    @apply text-text-muted;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-green;
+  }
+  h1,
+  h2,
+  h3 {
+    @apply text-text-main;
   }
 }
 
-/* Custom scrollbars */
+@layer components {
+  .label {
+    @apply block text-xs font-semibold uppercase tracking-wide text-text-secondary mb-1;
+  }
+  .prose-report h1 {
+    @apply font-serif text-3xl mb-2;
+  }
+  .prose-report h2 {
+    @apply font-serif text-xl mt-8 mb-3 pb-1 border-b border-surface-border;
+  }
+  .prose-report h3 {
+    @apply font-semibold text-base mt-4 mb-2;
+  }
+  .prose-report table {
+    @apply w-full text-xs border-collapse my-3;
+  }
+  .prose-report th,
+  .prose-report td {
+    @apply border border-surface-border px-2 py-1 text-left align-top;
+  }
+  .prose-report li {
+    @apply ml-5 list-disc text-sm my-1;
+  }
+  .prose-report p {
+    @apply text-sm my-2;
+  }
+  .prose-report blockquote {
+    @apply border-l-4 border-gold bg-surface-muted px-3 py-2 text-sm my-3;
+  }
+}
+
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-thumb {
-  background: theme('colors.surface-border');
+  background: #ddd7c8;
   border-radius: 4px;
 }
-::-webkit-scrollbar-thumb:hover {
-  background: theme('colors.text-muted');
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: white;
+  }
 }

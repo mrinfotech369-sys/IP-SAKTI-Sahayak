@@ -81,6 +81,62 @@ class MockEmbeddingProvider(EmbeddingProvider):
 
 
 # ---------------------------------------------------------------------------
+# Hashing n-gram Provider (offline, lexical-semantic, no model download)
+# ---------------------------------------------------------------------------
+
+_TOKEN_RE = None
+
+
+class HashingNgramEmbeddingProvider(EmbeddingProvider):
+    """
+    Signed feature-hashing of word unigrams, word bigrams and character
+    trigrams into a fixed 1024-dim space, with sublinear TF and L2 norm.
+
+    Unlike MockEmbeddingProvider, texts that share vocabulary get genuinely
+    higher cosine similarity, so dense retrieval is meaningful offline. It
+    does not capture synonyms — terminology expansion covers that gap.
+    """
+
+    @property
+    def name(self) -> str:
+        return "hashing-ngram"
+
+    @staticmethod
+    def _tokens(text: str) -> List[str]:
+        global _TOKEN_RE
+        if _TOKEN_RE is None:
+            import re
+            _TOKEN_RE = re.compile(r"[\wऀ-ॿ]+", re.UNICODE)
+        return [t for t in _TOKEN_RE.findall(text.lower()) if len(t) > 1]
+
+    @staticmethod
+    def _bucket(feature: str) -> tuple[int, float]:
+        h = int.from_bytes(hashlib.blake2b(feature.encode("utf-8"), digest_size=8).digest(), "big")
+        return h % EMBEDDING_DIM, (1.0 if (h >> 63) & 1 else -1.0)
+
+    def embed_text(self, text: str) -> List[float]:
+        counts: dict[str, float] = {}
+        tokens = self._tokens(text)
+        for i, tok in enumerate(tokens):
+            counts["w:" + tok] = counts.get("w:" + tok, 0) + 1.0
+            if i + 1 < len(tokens):
+                bg = "b:" + tok + "_" + tokens[i + 1]
+                counts[bg] = counts.get(bg, 0) + 0.7
+            padded = f"#{tok}#"
+            for j in range(len(padded) - 2):
+                tg = "c:" + padded[j : j + 3]
+                counts[tg] = counts.get(tg, 0) + 0.25
+        vec = np.zeros(EMBEDDING_DIM, dtype=np.float32)
+        for feat, tf in counts.items():
+            idx, sign = self._bucket(feat)
+            vec[idx] += sign * (1.0 + np.log(tf)) if tf >= 1 else sign * tf
+        norm = np.linalg.norm(vec)
+        if norm > 0:
+            vec /= norm
+        return vec.tolist()
+
+
+# ---------------------------------------------------------------------------
 # Local BGE-M3 Provider (sentence-transformers)
 # ---------------------------------------------------------------------------
 
@@ -136,7 +192,7 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
                 "openai package is required for OpenAIEmbeddingProvider. "
                 "Install with: pip install openai"
             ) from exc
-        key = api_key or os.environ.get("OPENAI_API_KEY", "")
+        key = api_key or os.environ.get("EMBEDDING_API_KEY") or os.environ.get("OPENAI_API_KEY", "")
         if not key:
             raise ValueError("OPENAI_API_KEY environment variable not set.")
         self._client = OpenAI(api_key=key)
@@ -188,11 +244,13 @@ def get_embedding_provider(provider_name: str | None = None) -> EmbeddingProvide
 
     if name == "mock":
         provider: EmbeddingProvider = MockEmbeddingProvider()
+    elif name == "hashing":
+        provider = HashingNgramEmbeddingProvider()
     elif name in ("local", "bge_m3"):
         model = os.environ.get("EMBEDDING_MODEL", "BAAI/bge-m3")
         provider = LocalBGEM3Provider(model_name=model)
     elif name == "openai":
-        provider = OpenAIEmbeddingProvider()
+        provider = OpenAIEmbeddingProvider(model=os.environ.get("EMBEDDING_MODEL", "text-embedding-3-small"))
     else:
         logger.warning(
             "Unknown EMBEDDING_PROVIDER '%s'. Falling back to mock provider.", name

@@ -1,88 +1,100 @@
-# IP-SAKTI Sahayak — System Architecture
+# IP-SAKTI Sahayak — Architecture & Runtime
 
-## 1. System Mission & Boundary
-**IP-SAKTI Sahayak** is an evidence-grounded, jurisdiction-aware intelligence copilot for Ayurveda innovation. It is engineered specifically for Ayurveda researchers, startups, and institutions to synthesize authoritative statutory, patent, biodiversity, and scientific evidence.
+## Boundary
 
-### What IP-SAKTI Sahayak IS:
-- A multi-tier evidence grounding engine synthesizing Indian and international statutes.
-- A jurisdiction-aware router separating India, United States (FDA), and Australia (TGA).
-- An anti-hallucination verification workspace with explicit citation verification tags (`VERIFIED`, `NOT_VERIFIED`, `INSUFFICIENT_EVIDENCE`).
-- A safe abstention engine that refuses to speculate on unsupported legal outcomes.
+IP-SAKTI Sahayak is a **decision-support and evidence-orchestration** platform for Ayurveda IP, traditional knowledge, scientific evidence and regulation in India, the USA and Australia.
 
-### What IP-SAKTI Sahayak IS NOT:
-- NOT a generic AI chatbot or medical diagnosis tool.
-- NOT a legal advice service or patent filing system.
-- NOT a replacement for statutory authorities (Indian Patent Office, CDSCO, NBA, US FDA, TGA).
-- DOES NOT claim unauthorized or simulated access to TKDL (Traditional Knowledge Digital Library).
+It is **not** any of the following:
+- a patent agent, lawyer, regulator or medical advisor;
+- a TKDL mirror;
+- a filing system;
+- an approval predictor.
 
----
+It never states that something is patentable, that there is freedom to operate, or that a product will be approved.
 
-## 2. Architectural Diagram
+## Runtime boundary (where each piece actually runs)
 
-```mermaid
-flowchart TD
-    subgraph Client ["Frontend: Next.js 15 + Tailwind + TypeScript"]
-        UI[Intelligence & Research Workspace]
-        Profiler[Innovation Intake Profiler]
-        Lang[Bilingual Toggle: EN / HI]
-        Bench[SIH Benchmark & Evaluation Dashboard]
-    end
+| Component | Runs in | Notes |
+|---|---|---|
+| UI | Next.js 15 (`next start`, Node) | Presentation only. `/api/*` is rewritten to FastAPI so the browser talks to one origin. |
+| API & orchestration | FastAPI + Uvicorn (Python 3.13) | Auth, RBAC, research pipeline, verification, classification, reports. |
+| Dense retrieval | **PostgreSQL 16 + pgvector** (HNSW, cosine) | Query vectors are computed in the API process. |
+| Lexical retrieval | **PostgreSQL full-text** (generated `tsvector`, GIN) | BM25-style `ts_rank_cd`. |
+| Embeddings | `hashing` (default): in-process CPU, no network, ~1 ms | `openai` (managed API) and `bge_m3` (local CPU/GPU, ~2 GB model) are optional. |
+| Reranking | Deterministic scoring in-process | No cross-encoder. This keeps latency low and the ranking explainable. |
+| Generation | `openai`/`deepseek` API or none (extractive) | Model-agnostic `LLMProvider`. Any OpenAI-compatible server (vLLM, Ollama) works via `LLM_BASE_URL`. |
+| Ingestion / OCR | FastAPI background task (off the request path) | Pipeline: PyMuPDF → Tesseract OCR fallback → section-aware chunker → embed → index. The raw file is deleted afterwards. |
+| Observability | JSON logs per request | Fields: request_id, user, workspace, endpoint, status, latency. Every answer also stores its full retrieval trace and LLM token usage. |
 
-    subgraph API ["Backend API: FastAPI (Python 3.13)"]
-        Router[API Gateway & Router]
-        ClassifyEP["/api/classify"]
-        AnalyzeEP["/api/analyze"]
-        RetrieveEP["/api/retrieve"]
-        VerifyEP["/api/verify-citations"]
-        SourcesEP["/api/sources"]
-        EvalEP["/api/evaluations"]
-    end
+Not on Vercel serverless: the API needs a long-lived Python process and a Postgres connection. Suggested institutional hosting:
+- 1 small VM (2 vCPU / 4 GB) running API + UI;
+- managed Postgres with pgvector;
+- a GPU worker only if `bge_m3` embeddings are chosen.
 
-    subgraph HybridEngine ["Retrieval & Evidence Grounding Engine"]
-        Dense[Dense Vector Retrieval: BGE-M3]
-        Sparse[Sparse Keyword Search: PostgreSQL tsvector]
-        RRF[Reciprocal Rank Fusion & Reranking]
-        CitationVerifier[Statutory Grounding & Anti-Hallucination Guard]
-        AbstentionProtocol[Safe Abstention & Human Escalation Trigger]
-    end
+## Measured performance (seed corpus, hashing embeddings, extractive mode)
 
-    subgraph Storage ["Database: Supabase PostgreSQL + pgvector"]
-        DocTable[(documents)]
-        ChunkTable[(document_chunks + vector1024)]
-        InnoTable[(innovations)]
-        AnalysisTable[(analyses)]
-        CitationTable[(citations)]
-        ClassTable[(classification_results)]
-        EvalTable[(evaluation_results)]
-    end
+From **Admin → RAG Evaluation**, 20 questions:
+- **Latency:** p50 10 ms, p95 20 ms for the pipeline itself.
+- **With an LLM:** add the provider's latency (typically 1–4 s) and one entailment call per key point.
+- **Corpus:** 39 global documents, 81 chunks, 13 global sources.
+- **Bottleneck:** the LLM, when configured. Retrieval stays under 30 ms at this size, and pgvector HNSW scales to millions of chunks.
 
-    Profiler --> Router
-    UI --> Router
-    Bench --> Router
-    Router --> ClassifyEP & AnalyzeEP & RetrieveEP & VerifyEP & SourcesEP & EvalEP
-    AnalyzeEP --> HybridEngine
-    HybridEngine --> Dense & Sparse
-    Dense & Sparse --> RRF
-    RRF --> CitationVerifier
-    CitationVerifier --> AbstentionProtocol
-    HybridEngine --> Storage
+## Research pipeline
+
+```
+query → language detection → intent → jurisdiction (hard filter; EU and other unsupported jurisdictions are refused)
+      → [Hindi + LLM: meaning-preserving translation to English]
+      → terminology normalisation (Sanskrit/Hindi/English/botanical/chemical; ambiguity flagged)
+      → query expansion → source selection
+      → hybrid retrieval: dense (pgvector) + BM25 (tsvector) + metadata (keywords) + graph (curated document relations)
+      → merge → dedupe → deterministic rerank (relevance, lexical, jurisdiction, tier, freshness, doc type, feature match;
+        injection-flagged text down-weighted)
+      → context assembly (top-k passages, truncated, delimited as DATA)
+      → generation (LLM JSON with answer-language text + English text_en) or extractive quotes
+      → claim extraction → citation binding (fabricated citation numbers removed and reported)
+      → verification per claim: source exists → passage exists → authority → jurisdiction → freshness
+        → anchors (section/rule/year present in passage) → lexical coverage + embedding similarity
+        → polarity check on best-matching sentence → optional LLM entailment
+        → SUPPORTED / PARTIALLY_SUPPORTED / UNSUPPORTED / CONFLICTING / INSUFFICIENT
+      → conflict detection (same topic, different positions) → freshness check
+      → safety/abstention (TKDL, medical, legal certainty, injection, insufficient evidence)
+      → heuristic confidence with visible signals → response + stored trace
 ```
 
----
+## Confidence
 
-## 3. End-to-End Decision Flow
-```
-Understand (Intake Profiler)
-   ↓
-Classify (Classical ASU vs Patent & Proprietary vs FSSAI Nutraceutical)
-   ↓
-Route (India AYUSH / US FDA DSHEA / Australia TGA)
-   ↓
-Retrieve (Hybrid Dense BGE-M3 + Sparse Keyword PostgreSQL)
-   ↓
-Verify (Grounding Score & Authority Tier Matching)
-   ↓
-Explain (Synthesized Multi-Domain Intelligence Dossier)
-   ↓
-Act / Escalate (Actionable Recommendations or Human Expert Escalation Flag)
-```
+Confidence is a **heuristic**, not a calibrated probability. It is a weighted mix of six signals:
+
+| Signal | Weight |
+|---|---|
+| Claim verification score | 0.30 |
+| Share of claims fully supported | 0.20 |
+| Source authority tier | 0.20 |
+| Jurisdiction match | 0.10 |
+| Evidence coverage | 0.10 |
+| Freshness | 0.10 |
+
+It is then reduced by penalties for ambiguous terms, source conflicts and demo sources. The UI shows every signal under "Why this confidence?".
+
+## Data model (Alembic migrations in `backend/alembic/versions`)
+
+**Tenancy:**
+- users, organizations, workspaces, workspace_members (RBAC).
+
+**Innovations:**
+- innovations, innovation_profiles, innovation_features;
+- evidence, patent_feature_matches, evidence_gaps;
+- escalations, reports.
+
+**Corpus:**
+- sources (tier, jurisdiction, access level, update frequency, curator);
+- documents (version, effective date, supersession, content hash, extraction method, OCR confidence, review status);
+- document_chunks (section, chunk type, embedding, tsvector, injection flag);
+- patents, scientific_studies, regulatory_pathways, terms (terminology).
+
+**Research, quality and audit:**
+- conversations, messages (structured payload + trace), retrieval_results;
+- claims and claim_evidence (per-claim verification records);
+- feedback (issue reports with snapshots);
+- evaluation_questions, evaluation_runs;
+- ingestion_jobs, audit_logs.

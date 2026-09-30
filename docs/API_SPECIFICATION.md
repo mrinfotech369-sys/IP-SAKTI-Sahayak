@@ -1,37 +1,33 @@
-# IP-SAKTI Sahayak — Backend API Specification
+# IP-SAKTI Sahayak — API
 
-Base URL: `http://localhost:8000/api`
+The live, authoritative specification is the OpenAPI schema. It includes request and response models and examples:
+- Swagger UI: `http://localhost:8000/docs`
+- ReDoc: `http://localhost:8000/redoc`
 
-## Endpoints
+## Conventions
 
-### 1. Innovation Intake
-- **`POST /api/innovations`**: Registers a new Ayurvedic innovation profile.
-- **`GET /api/innovations`**: Lists all registered innovations.
-- **`GET /api/innovations/{id}`**: Retrieves a specific innovation dossier.
+- **Auth:**
+  - `POST /api/auth/login` returns a token and also sets an httpOnly cookie.
+  - API clients send `Authorization: Bearer <token>`.
+  - Cookie-authenticated writes must send `X-Requested-With: ipsakti`.
+- **Workspace:** select one with the `X-Workspace-Id` header. The default is the user's first workspace.
+- **Responses:**
+  - success: `{"success": true, "data": …, "meta": {…}}`
+  - error: `{"success": false, "error": {"code", "message"}}`
+  - Stack traces are never returned.
+- **Rate limits:** per user per minute on chat, search, ingest and reports.
 
-### 2. Product Classification
-- **`POST /api/classify`**: Classifies an Ayurvedic innovation into Classical ASU, Patent & Proprietary, FSSAI Nutraceutical, or Phytopharmaceutical.
-  - Returns: Primary Category, Secondary Categories, Confidence, Statutory Basis, Clarifying Questions, Human Review Flags.
+## Endpoint groups (73 paths)
 
-### 3. End-to-End Grounded Analysis
-- **`POST /api/analyze`**: Executes multi-domain intelligence synthesis across:
-  - Product Classification
-  - IP Considerations (Section 3(p) Traditional Knowledge bar)
-  - Traditional Knowledge & Biodiversity / ABS (NBA Section 3 & 6 compliance, Form I)
-  - Regulatory Pathways (AYUSH Rule 158B / US FDA DSHEA / AU TGA)
-  - Scientific Evidence (PubMed clinical trials)
-  - Authoritative Sources & Citations
-  - Safe Abstention Protocol Trigger & Expert Escalation
-
-### 4. Hybrid Retrieval
-- **`POST /api/retrieve`**: Queries the pgvector + full-text search corpus with reciprocal rank fusion (RRF) and Tier/Jurisdiction filtering.
-
-### 5. Citation Verification & Anti-Hallucination
-- **`POST /api/verify-citations`**: Verifies whether a specific claim assertion is grounded in official Tier 1/2 texts.
-  - Status values: `VERIFIED`, `NOT_VERIFIED`, `INSUFFICIENT_EVIDENCE`.
-
-### 6. Curated Sources Explorer
-- **`GET /api/sources`**: Returns documents in the curated knowledge corpus.
-
-### 7. SIH Evaluation & Benchmark Dashboard
-- **`GET /api/evaluations`**: Returns live benchmark evaluation metrics across Citation Precision, Groundness Score, Safe Abstention Accuracy, and Zero Hallucination Rate.
+| Group | Endpoints |
+|---|---|
+| Auth | `POST /auth/register`, `/auth/login`, `/auth/logout`; `GET /auth/me`, `/auth/session` |
+| Workspaces | `GET/POST /workspaces`; `GET/PATCH /workspaces/{id}`; `POST /workspaces/{id}/members` |
+| Innovations | `GET/POST /innovations`; `GET/PATCH/DELETE /innovations/{id}`; `POST …/profile/generate`; `PATCH …/profile`; `POST …/analyze`; `GET …/summary`, `…/provisions`, `…/evidence` (+`POST`), `…/scientific`, `…/tk`, `…/patents` (+`PATCH …/patents/matches/{id}`), `…/evidence-gaps` (+`PATCH`), `…/risk-map`, `…/graph`, `…/classification` (+`POST`), `…/regulatory` |
+| Research | `POST /chat`; `GET /conversations`, `/conversations/{id}`, `/conversations/{id}/messages`; `DELETE /conversations/{id}`; `PATCH /messages/{id}` |
+| Search & verification | `POST /search`, `/search/patents`, `/search/scientific`, `/search/regulatory`, `/citations/verify`, `/classification/analyze`; `GET /classification/questions`, `/regulatory/{IN\|US\|AU}` |
+| Review | `POST/GET /escalations`; `GET/PATCH /escalations/{id}`; `POST/GET /reports`; `GET /reports/{id}`, `/reports/{id}/markdown`; `POST/GET /feedback`; `PATCH /feedback/{id}`; `GET /audit` |
+| Corpus | `GET/POST /sources`; `PATCH /sources/{id}`; `GET/POST /documents`; `GET /documents/{id}`; `PATCH /documents/{id}/review`; `POST /documents/ingest`; `GET /ingestion-jobs`, `/ingestion-jobs/{id}`, `/uploads/notice`, `/coverage`, `/privacy` |
+| Admin | `GET /dashboard`, `/admin/overview`, `/admin/users` (+`PATCH`), `/admin/workspaces`, `/admin/update-queue`, `/metrics`; `POST /admin/retention/run` |
+| Evaluation | `GET /evaluations`; `POST /evaluations/run` |
+| Health | `GET /health`, `/health/database`, `/health/vector`, `/health/llm` |
