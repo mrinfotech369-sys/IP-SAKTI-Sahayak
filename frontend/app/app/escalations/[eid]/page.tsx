@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { Badge, Card, ErrorState, PageHeader, SeverityBadge, Spinner, fmtDateTime } from '@/components/ui';
+import { BackLink } from '@/components/back';
 import { get, patch } from '@/lib/api';
 
 export default function EscalationView() {
@@ -17,6 +18,7 @@ export default function EscalationView() {
   const p = e.packet;
   return (
     <div className="space-y-4">
+      <div className="flex gap-4"><BackLink href="/app/escalations">All escalations</BackLink><BackLink href={`/app/innovations/${e.innovation_id}/review`}>Back to innovation</BackLink></div>
       <PageHeader eyebrow="Escalation packet" title={e.type.replace('_', ' ')} subtitle={e.summary}
         actions={
           <label className="text-xs">Status{' '}

@@ -5,6 +5,7 @@ import { Bot, Lock, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, usePathname } from 'next/navigation';
 import { Badge, Button, ErrorState, JurisdictionBadge, LinkButton, Notice, Spinner, cx, fmtDateTime } from '@/components/ui';
+import { BackLink } from '@/components/back';
 import { post } from '@/lib/api';
 import { useInnovation } from '@/lib/hooks';
 
@@ -42,7 +43,7 @@ export default function InnovationLayout({ children }: { children: React.ReactNo
     <div>
       <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <Link href="/app/innovations" className="text-xs text-text-muted hover:underline">← All innovations</Link>
+          <BackLink href="/app/innovations">All innovations</BackLink>
           <h1 className="mt-1 font-serif text-3xl leading-tight">{d.name}</h1>
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
             <Badge tone="dark">{d.status.replace('_', ' ')}</Badge>

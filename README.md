@@ -64,6 +64,14 @@ tests/                          pytest suite incl. the end-to-end integration fl
 docker/                         backend & frontend Dockerfiles      docker-compose.yml
 ```
 
+## One-command start (demo machine)
+
+```bash
+scripts/start_all.sh   # Postgres, Ollama (preloads model), migrations/seed, API, UI, public tunnel; keeps the Mac awake
+scripts/stop_all.sh
+```
+Logs go to `logs/`. The printed public URL (Cloudflare quick tunnel) works only while this machine is awake and running.
+
 ## Running locally
 
 **Prerequisites:** Python 3.11+ (3.13 tested), Node 20+ (24 tested), Docker (for Postgres).
@@ -162,7 +170,7 @@ docker compose up -d postgres
 - The corpus is a curated seed (40 documents), not a live feed. Statute summaries need verification, and patents are fictional. Use Admin → Ingestion to add official documents.
 - The default `hashing` embeddings capture shared vocabulary, not synonyms (terminology expansion covers much of this). Use `EMBEDDING_PROVIDER=openai` or `bge_m3` for semantic embeddings. Changing the embedding provider requires reseeding (`--reset`) so stored vectors match.
 - Without an LLM key, answers are extractive quotes rather than synthesis.
-- OCR is not enabled: scanned PDFs are rejected with a clear message.
+- OCR uses Tesseract (English + Hindi when `hin.traineddata` is installed). Results below 70% confidence are sent for human validation.
 - Rate limiting is in-process; use Redis for multi-instance deployments.
 - Background jobs run inline (documents are small); long ingestion would need a worker.
 - Legacy artifacts from the earlier prototype (`backend/db/schema.sql`, `rag/store/*`, `evaluation/`, `scripts/`) are kept for reference; Alembic migrations and `app/models/orm.py` are the source of truth.

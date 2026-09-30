@@ -6,13 +6,14 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { FormEvent, useState } from 'react';
 import { ApiError, post, setWorkspaceId } from '@/lib/api';
 import { useApp } from '@/lib/providers';
+import { BackLink } from './back';
 import { Button, Field, Notice } from './ui';
 
 export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
   const router = useRouter();
   const params = useSearchParams();
   const qc = useQueryClient();
-  const { t } = useApp();
+  const { t, lang } = useApp();
   const demo = params.get('demo') === '1';
   const [form, setForm] = useState({
     name: '', email: demo ? 'researcher@ipsakti.demo' : '', password: demo ? 'Demo@12345' : '', workspace: '',
@@ -47,6 +48,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
   return (
     <div className="grid min-h-screen place-items-center px-4">
       <div className="w-full max-w-sm">
+        <div className="mb-4"><BackLink href="/">{lang === 'hi' ? 'होम पर वापस' : 'Back to home'}</BackLink></div>
         <Link href="/" className="mb-6 flex items-center gap-2">
           <div className="grid h-8 w-8 place-items-center rounded bg-deep-green font-serif text-gold">स</div>
           <span className="font-semibold">{t.appTitle}</span>

@@ -8,6 +8,7 @@ import {
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { BackButton } from '@/components/back';
 import { Spinner, cx } from '@/components/ui';
 import { get, post, setWorkspaceId } from '@/lib/api';
 import { useApp } from '@/lib/providers';
@@ -135,6 +136,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="no-print sticky top-0 z-30 flex items-center gap-2 sm:gap-3 border-b border-surface-border bg-darkbg/95 px-4 py-2 backdrop-blur">
           <button className="lg:hidden" onClick={() => setOpen(true)} aria-label="Open menu"><Menu className="h-5 w-5" /></button>
+          {path !== '/app' && <BackButton label={lang === 'hi' ? 'वापस' : 'Back'} />}
           <label className="flex items-center gap-2 text-xs">
             <span className="hidden text-text-muted sm:inline">Workspace</span>
             <select className="max-w-[40vw] py-1 text-xs sm:max-w-none" value={workspaceId || ''} onChange={(e) => switchWorkspace(e.target.value)} aria-label="Workspace">

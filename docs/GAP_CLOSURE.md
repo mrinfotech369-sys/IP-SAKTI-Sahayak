@@ -26,7 +26,7 @@ Figures come from the live system: *Admin → RAG Evaluation*, *Coverage Matrix*
 | P1 | Domain vocabulary | **Done** | Terminology engine covering Sanskrit, Hindi, English, botanical, chemical and aliases, with ambiguity (Brahmi → *Bacopa monnieri* / *Centella asiatica*). Synonym retrieval tests: E17 Haridra/Maricha, E18 *Withania somnifera*, E19 Hindi. |
 | P1 | Prompt injection | **Done** | See **Prompt-injection detail** below. |
 | P2 | Feedback & audit | **Done** | "Report issue" form: category, reason, key point, answer + source-version snapshot, review status. Feedback queue. Audit trail. Every answer stores its full retrieval trace. |
-| P2 | Upload | **Done** | Privacy/retention notice with a required acknowledgement. Validation. Background ingestion with Tesseract OCR fallback and OCR confidence; OCR below 70 forces human validation. The raw file is deleted after processing. |
+| P2 | Upload | **Done** | Privacy/retention notice with a required acknowledgement. Validation. Background ingestion with Tesseract OCR fallback (English + Hindi; 93% confidence on a rendered Hindi test page) and OCR confidence; OCR below 70 forces human validation. The raw file is deleted after processing. |
 | P2 | Export | **Done** | See **Export detail** below. |
 | P2 | Cost/scalability | **Partial** | p50/p95, LLM calls per query, cost per query and a 10k-user projection come from recorded token usage (System Health). The cost is **$0 until an LLM key is configured**. Price assumptions are configurable. |
 
@@ -210,5 +210,5 @@ Figures come from the live system: *Admin → RAG Evaluation*, *Coverage Matrix*
 - **Seed summaries unverified:** statute summaries must be verified against the official Gazette/regulator text and then marked *Approve (verified)* in the Update Queue.
 - **Labels not expert-reviewed:** evaluation and classification labels are author-assigned and need expert review.
 - **Embeddings are lexical:** the default hashing embeddings match shared vocabulary rather than meaning; semantic embeddings (OpenAI or bge-m3) require a reseed.
-- **No application-level encryption at rest.**
+- **Encryption at rest:** FileVault is **off** on the current demo Mac, so the database files are not encrypted at rest. Turn it on (System Settings → Privacy & Security → FileVault) or use a managed database with encryption.
 - **English-only OCR:** the Hindi OCR language pack is not installed.

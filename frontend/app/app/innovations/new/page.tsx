@@ -5,6 +5,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Button, Card, ErrorState, Field, Notice, PageHeader, ProgressSteps, cx, useStepTicker } from '@/components/ui';
+import { BackLink } from '@/components/back';
 import { post } from '@/lib/api';
 import { useApp } from '@/lib/providers';
 
@@ -66,6 +67,7 @@ export default function NewInnovation() {
 
   return (
     <div>
+      <div className="mb-3"><BackLink href="/app/innovations">Cancel — back to innovations</BackLink></div>
       <PageHeader eyebrow="Innovation Profiler" title={t.nav.createInnovation} subtitle="Describe the innovation. The profiler extracts structured features, normalises terminology and flags missing information — it never invents values." />
       <ol className="mb-6 flex flex-wrap gap-1" aria-label="Wizard steps">
         {STEPS.map((s, i) => (

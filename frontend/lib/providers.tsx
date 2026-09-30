@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from '@tan
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { ApiError, get, getWorkspaceId, setWorkspaceId } from './api';
 import { i18n, Language } from './i18n';
+import { useTrackNavigation } from '@/components/back';
 import type { User } from './types';
 
 type AppCtx = {
@@ -40,6 +41,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
 function AppProvider({ children }: { children: React.ReactNode }) {
   const qc = useQueryClient();
+  useTrackNavigation();
   const [lang, setLangState] = useState<Language>('en');
   const [workspaceId, setWs] = useState<string | null>(null);
 

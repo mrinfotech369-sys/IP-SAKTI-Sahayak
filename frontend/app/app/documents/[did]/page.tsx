@@ -2,9 +2,9 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { ExternalLink } from 'lucide-react';
-import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { Badge, Card, DemoBadge, ErrorState, FreshnessBadge, JurisdictionBadge, PageHeader, Spinner, TierBadge, fmtDate } from '@/components/ui';
+import { BackLink } from '@/components/back';
 import { get } from '@/lib/api';
 
 export default function DocumentView() {
@@ -15,7 +15,7 @@ export default function DocumentView() {
   const d = q.data;
   return (
     <div>
-      <Link href="/app/documents" className="text-xs text-text-muted hover:underline">← Documents</Link>
+      <BackLink href="/app/documents">All documents</BackLink>
       <PageHeader title={d.title} subtitle={`${d.source} · ${d.authority}`} />
       <div className="mb-4 flex flex-wrap gap-1.5"><TierBadge tier={d.tier} /><JurisdictionBadge j={d.jurisdiction} /><Badge>{d.document_type}</Badge><FreshnessBadge status={d.freshness} /><DemoBadge reviewStatus={d.review_status} /></div>
       <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
