@@ -46,7 +46,7 @@ export default function Documents() {
           <div className="mb-3 rounded-md border border-info/30 bg-info-bg p-3 text-xs">
             <div className="font-semibold text-info">Before you upload — privacy & retention</div>
             <p className="mt-1">{notice.data.notice}</p>
-            <p className="mt-1 text-text-secondary">Retention: {notice.data.retention_policy} · max {notice.data.max_mb} MB · OCR for scanned PDFs: {notice.data.ocr_available ? 'available (English)' : 'not installed'}</p>
+            <p className="mt-1 text-text-secondary">Retention: {notice.data.retention_policy} · max {notice.data.max_mb} MB · OCR for scanned PDFs: {notice.data.ocr_available ? `available (${notice.data.ocr_languages === 'eng+hin' ? 'English + Hindi' : 'English'})` : 'not installed'}</p>
             <label className="mt-2 flex items-center gap-2 font-medium"><input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} /> I have read this notice</label>
           </div>
         )}

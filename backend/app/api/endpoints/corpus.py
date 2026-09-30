@@ -13,7 +13,7 @@ from app.core.config import settings
 from app.schemas import DocumentReview, SourceIn, SourcePatch
 from app.services.audit import audit
 from app.services.governance import coverage, update_queue, update_status
-from app.services.ingestion import create_job, ocr_available, process_job
+from app.services.ingestion import create_job, ocr_available, ocr_languages, process_job
 from app.services.llm import data_handling
 from app.services.retrieval import freshness_status
 
@@ -128,7 +128,8 @@ def upload_notice(ctx: WorkspaceCtx = Depends(workspace_ctx), db: Session = Depe
     from app.models.orm import Workspace
     w = db.get(Workspace, ctx.workspace_id)
     return ok({"notice": UPLOAD_NOTICE, "retention_policy": w.retention_policy, "confidential_mode": w.confidential_mode,
-               "max_mb": settings.MAX_UPLOAD_MB, "ocr_available": ocr_available()})
+               "max_mb": settings.MAX_UPLOAD_MB, "ocr_available": ocr_available(),
+               "ocr_languages": ocr_languages() if ocr_available() else None})
 
 
 @router.post("/documents", dependencies=[Depends(rate_limit("ingest"))], summary="Upload a document into the workspace (Tier 5, unverified)")

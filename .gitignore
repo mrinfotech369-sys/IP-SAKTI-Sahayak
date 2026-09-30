@@ -56,3 +56,6 @@ data/raw_pdf/
 *.swo
 .DS_Store
 Thumbs.db
+
+# Runtime logs
+logs/

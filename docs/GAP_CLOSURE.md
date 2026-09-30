@@ -120,6 +120,12 @@ Figures come from the live system: *Admin → RAG Evaluation*, *Coverage Matrix*
      - cross-jurisdiction contamination **0** vs **0.22** for the baseline;
      - classification agreement **13/13** on author-labelled cases (expert review pending);
      - 19/20 questions pass all checks.
+   - **LLM mode** (local `qwen2.5:7b` via Ollama, same 20 questions):
+     - abstention accuracy **1.0** vs **0.8** for the same model answering without retrieval;
+     - citation correctness **1.0**; the no-retrieval model gives 0% verifiable citations;
+     - citation entailment **0.80** (paraphrases verify less often than quotes; such points are shown as *partially supported*, never as fact);
+     - unsupported-claim rate **3.2%**, flagged in the UI;
+     - latency p50 33 s / p95 55 s on a 16 GB M4 laptop (measured while a frontend build was running).
    - Caveat: the questions were written by the team against a small curated corpus. Treat this as a regression suite, not a benchmark claim.
 4. **Corpus size — what is ingested?**
    - 39 global documents, 81 passages, 13 global sources (plus a workspace-upload source and a demo malicious upload used for injection tests): 26 statute/regulation/treaty/TK-context documents, 6 peer-reviewed studies and 7 patents.

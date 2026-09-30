@@ -40,6 +40,16 @@ def ocr_available() -> bool:
     return shutil.which("tesseract") is not None
 
 
+def ocr_languages() -> str:
+    """English always; Hindi (Devanagari) too when its traineddata is installed."""
+    try:
+        import pytesseract
+        langs = set(pytesseract.get_languages(config=""))
+    except Exception:
+        return "eng"
+    return "eng+hin" if "hin" in langs else "eng"
+
+
 def _chunk_type(text: str, section: Optional[str]) -> str:
     s = (section or "").lower()
     t = text.lower()[:200]
@@ -89,11 +99,12 @@ def _ocr_pages(path: Path, page_nums: list[int]) -> tuple[dict[int, str], Option
     from PIL import Image
 
     texts, confs = {}, []
+    lang = ocr_languages()
     with fitz.open(path) as doc:
         for n in page_nums[:50]:
             pix = doc[n - 1].get_pixmap(dpi=200)
             img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
-            data = pytesseract.image_to_data(img, lang="eng", output_type=pytesseract.Output.DICT)
+            data = pytesseract.image_to_data(img, lang=lang, output_type=pytesseract.Output.DICT)
             words = [(w, float(c)) for w, c in zip(data["text"], data["conf"]) if w.strip() and float(c) >= 0]
             texts[n] = " ".join(w for w, _ in words)
             confs += [c for _, c in words]
@@ -153,7 +164,7 @@ def process_job(job_id: str, meta: dict) -> None:
                         if p.page_num in texts:
                             p.text = texts[p.page_num]
                     method = "PYMUPDF+TESSERACT_OCR"
-                    step("ocr", pages=len(texts), mean_confidence=ocr_conf,
+                    step("ocr", pages=len(texts), mean_confidence=ocr_conf, languages=ocr_languages(),
                          validation="Low-confidence OCR (<70) is flagged for human validation." if ocr_conf is not None and ocr_conf < 70 else "OK")
                 else:
                     step("ocr", skipped=True, reason="Tesseract not installed on this server")
